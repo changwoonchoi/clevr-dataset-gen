@@ -206,6 +206,11 @@ def main(args):
     json.dump(output, f)
 
 
+def listify_matrix(matrix):
+  matrix_list = []
+  for row in matrix:
+    matrix_list.append(list(row))
+  return matrix_list
 
 def render_scene(args,
     num_objects=5,
@@ -308,6 +313,12 @@ def render_scene(args,
 
   # Now make some random objects
   objects, blender_objects = add_random_objects(scene_struct, num_objects, args, camera)
+  
+  # render individual mask png
+  index = 0
+  for bo in blender_objects:
+    render_shadeless([bo], path=output_image[:-4] + '/mask/' + str(index) + '.png')
+    index += 1
 
   # Render the scene and dump the scene data structure
   scene_struct['objects'] = objects

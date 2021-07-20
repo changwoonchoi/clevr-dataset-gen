@@ -336,7 +336,7 @@ def render_scene(args,
   """
 
   # render whole mask png
-  render_shadeless(blender_objects, path=output_image[:-4] + '/mask/_all.png')
+  render_shadeless(blender_objects, path=output_image[:-4] + '/mask/all.png')
 
   # Render the scene and dump the scene data structure
   scene_struct['objects'] = objects
