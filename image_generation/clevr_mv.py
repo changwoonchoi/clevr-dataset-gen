@@ -219,12 +219,6 @@ def main(args):
     json.dump(output, f)
 
 
-def listify_matrix(matrix):
-  matrix_list = []
-  for row in matrix:
-    matrix_list.append(list(row))
-  return matrix_list
-
 def render_scene(args,
     num_objects=5,
     output_index=0,

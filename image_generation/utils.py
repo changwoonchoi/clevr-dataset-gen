@@ -170,3 +170,24 @@ def add_material(name, **properties):
       output_node.inputs['Surface'],
   )
 
+
+# util functions from NeRF original repo
+
+
+def listify_matrix(matrix):
+  matrix_list = []
+  for row in matrix:
+    matrix_list.append(list(row))
+  return matrix_list
+
+def parent_obj_to_camera(b_camera):
+    origin = (0, 0, 0)
+    b_empty = bpy.data.objects.new("Empty", None)
+    b_empty.location = origin
+    b_camera.parent = b_empty  # setup parenting
+
+    scn = bpy.context.scene
+    scn.collection.objects.link(b_empty)
+    bpy.context.view_layer.objects.active = b_empty
+    # scn.objects.active = b_empty
+    return b_empty
