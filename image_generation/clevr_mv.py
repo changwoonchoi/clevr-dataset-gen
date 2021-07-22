@@ -48,9 +48,10 @@ parser = argparse.ArgumentParser()
 
 # Multiview options
 parser.add_argument('--num_view', default=30, type=int, help="number of view")
+parser.add_argument('--upper_only', action='store_true')
 
 # Input options
-parser.add_argument('--base_scene_blendfile', default='data/base_scene.blend',
+parser.add_argument('--base_scene_blendfile', default='data/base_scene_centered.blend',
     help="Base blender file on which all scenes are based; includes " +
           "ground plane, lights, and camera.")
 parser.add_argument('--properties_json', default='data/properties.json',
@@ -178,7 +179,6 @@ def main(args):
     os.makedirs(args.output_scene_dir)
   if args.save_blendfiles == 1 and not os.path.isdir(args.output_blend_dir):
     os.makedirs(args.output_blend_dir)
-  import pdb; pdb.set_trace()
   # bpy.context.scene.render.dither_intensity = 0.0 
   # bpy.context.scene.render.film_transparent = True
 
@@ -353,7 +353,13 @@ def render_scene(args,
     cam_constraint.target = b_empty
 
     rotation_mode = 'XYZ'
-    b_empty.rotation_euler = np.random.uniform(0, 2*np.pi, size=3)
+    
+    if args.upper_only:
+      rot = np.random.uniform(0, 1, size=3) * (1, 0, 2 * np.pi)
+      rot[0] = np.abs(np.arccos(1 - 2 * rot[0]) - np.pi / 2)
+      b_empty.rotation_euler = rot
+    else:
+      b_empty.rotation_euler = np.random.uniform(0, 2*np.pi, size=3)
     while True:
       try:
         bpy.ops.render.render(write_still=True)
@@ -475,6 +481,8 @@ def add_random_objects(scene_struct, num_objects, args, camera):
     })
 
   # Check that all objects are at least partially visible in the rendered image
+  # import pdb; pdb.set_trace()
+  """
   all_visible = check_visibility(blender_objects, args.min_pixels_per_object)
   if not all_visible:
     # If any of the objects are fully occluded then start over; delete all
@@ -483,6 +491,7 @@ def add_random_objects(scene_struct, num_objects, args, camera):
     for obj in blender_objects:
       utils.delete_object(obj)
     return add_random_objects(scene_struct, num_objects, args, camera)
+  """
 
   return objects, blender_objects
 
