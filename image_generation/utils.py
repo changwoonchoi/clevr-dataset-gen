@@ -187,7 +187,9 @@ def parent_obj_to_camera(b_camera):
     b_camera.parent = b_empty  # setup parenting
 
     scn = bpy.context.scene
-    scn.collection.objects.link(b_empty)
-    bpy.context.view_layer.objects.active = b_empty
-    # scn.objects.active = b_empty
+    # scn.collection.objects.link(b_empty)
+    scn.objects.link(b_empty)
+
+    # bpy.context.view_layer.objects.active = b_empty
+    scn.objects.active = b_empty
     return b_empty

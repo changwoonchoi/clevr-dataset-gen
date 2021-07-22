@@ -6,9 +6,12 @@
 # of patent rights can be found in the PATENTS file in the same directory.
 
 from __future__ import print_function
+from utils import parent_obj_to_camera
 import math, sys, random, argparse, json, os, tempfile
+import numpy as np
 from datetime import datetime as dt
 from collections import Counter
+from math import radians
 
 """
 Renders random scenes using Blender, each with with a random number of objects;
@@ -44,10 +47,7 @@ if INSIDE_BLENDER:
 parser = argparse.ArgumentParser()
 
 # Multiview options
-parser.add_argument('--num_view_train', default=100,
-    help="number of view of train set")
-parser.add_argument('--num_view_test', default=20,
-    help='number of view of test set')
+parser.add_argument('--num_view', default=30, type=int, help="number of view")
 
 # Input options
 parser.add_argument('--base_scene_blendfile', default='data/base_scene.blend',
@@ -178,7 +178,10 @@ def main(args):
     os.makedirs(args.output_scene_dir)
   if args.save_blendfiles == 1 and not os.path.isdir(args.output_blend_dir):
     os.makedirs(args.output_blend_dir)
-  
+  import pdb; pdb.set_trace()
+  # bpy.context.scene.render.dither_intensity = 0.0 
+  # bpy.context.scene.render.film_transparent = True
+
   all_scene_paths = []
   for i in range(args.num_images):
     img_path = img_template % (i + args.start_idx)
@@ -250,6 +253,9 @@ def render_scene(args,
     if bpy.app.version < (2, 78, 0):
       bpy.context.user_preferences.system.compute_device_type = 'CUDA'
       bpy.context.user_preferences.system.compute_device = 'CUDA_0'
+    # elif bpy.app.version > (2, 79):
+    #   cycle_prefs = bpy.context.preferences.addons['cycles'].preferences
+    #   cycle_prefs.compute_device_type = 'CUDA'
     else:
       cycles_prefs = bpy.context.user_preferences.addons['cycles'].preferences
       cycles_prefs.compute_device_type = 'CUDA'
@@ -335,12 +341,25 @@ def render_scene(args,
   # Render the scene and dump the scene data structure
   scene_struct['objects'] = objects
   scene_struct['relationships'] = compute_all_relationships(scene_struct)
-  while True:
-    try:
-      bpy.ops.render.render(write_still=True)
-      break
-    except Exception as e:
-      print(e)
+  
+  scene = bpy.context.scene
+
+  for i in range(0, args.num_view):
+    scene.render.filepath = output_image[:-4] + '_{}.png'.format(i)
+    cam_constraint = camera.constraints.new(type="TRACK_TO")
+    cam_constraint.track_axis = 'TRACK_NEGATIVE_Z'
+    cam_constraint.up_axis = 'UP_Y'
+    b_empty = parent_obj_to_camera(camera)
+    cam_constraint.target = b_empty
+
+    rotation_mode = 'XYZ'
+    b_empty.rotation_euler = np.random.uniform(0, 2*np.pi, size=3)
+    while True:
+      try:
+        bpy.ops.render.render(write_still=True)
+        break
+      except Exception as e:
+        print(e)
 
   with open(output_scene, 'w') as f:
     json.dump(scene_struct, f, indent=2)
