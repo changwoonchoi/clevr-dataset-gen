@@ -482,7 +482,6 @@ def add_random_objects(scene_struct, num_objects, args, camera):
 
   # Check that all objects are at least partially visible in the rendered image
   # import pdb; pdb.set_trace()
-  """
   all_visible = check_visibility(blender_objects, args.min_pixels_per_object)
   if not all_visible:
     # If any of the objects are fully occluded then start over; delete all
@@ -491,7 +490,6 @@ def add_random_objects(scene_struct, num_objects, args, camera):
     for obj in blender_objects:
       utils.delete_object(obj)
     return add_random_objects(scene_struct, num_objects, args, camera)
-  """
 
   return objects, blender_objects
 
@@ -573,6 +571,9 @@ def render_shadeless(blender_objects, path='flat.png'):
   utils.set_layer(bpy.data.objects['Lamp_Fill'], 2)
   utils.set_layer(bpy.data.objects['Lamp_Back'], 2)
   utils.set_layer(bpy.data.objects['Ground'], 2)
+  utils.set_layer(bpy.data.objects['Ground.001'], 2)
+  utils.set_layer(bpy.data.objects['Ground.002'], 2)
+  utils.set_layer(bpy.data.objects['Ground.003'], 2)
 
   # Add random shadeless materials to all objects
   object_colors = set()
