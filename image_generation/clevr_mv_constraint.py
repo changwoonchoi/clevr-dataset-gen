@@ -115,7 +115,7 @@ parser.add_argument('--output_scene_dir', default='../output/scenes/',
          "It will be created if it does not exist.")
 parser.add_argument('--output_scene_file', default='../output/CLEVR_scenes.json',
     help="Path to write a single JSON file containing all scene information")
-parser.add_argument('--transform_output_file', default='output/transforms.json',
+parser.add_argument('--transform_output_file', default='../output/transforms.json',
     help="path for frame data")
 parser.add_argument('--output_blend_dir', default='output/blendfiles',
     help="The directory where blender scene files will be stored, if the " +
@@ -336,6 +336,16 @@ def render_scene(args,
 
   # Now make some random objects
   objects, blender_objects = add_random_objects(scene_struct, num_objects, args, camera)
+
+  # create random color for instance mask
+
+  mask_colors = set()
+  for i, obj in enumerate(blender_objects):
+    while True:
+      r, g, b = [random.random() for _ in range(3)]
+      if (r, g, b) not in mask_colors: break
+    mask_colors.add((r, g, b))
+  mask_colors = list(mask_colors)
   
   # render individual mask png
   """
@@ -385,7 +395,7 @@ def render_scene(args,
         }
         output_json['frames'].append(frame_data)
         bpy.ops.render.render(write_still=True)
-        render_shadeless(blender_objects, path=output_image[:-4] + '/mask/{}.png'.format(i))
+        render_shadeless(blender_objects, mask_colors, path=output_image[:-4] + '/mask/{}.png'.format(i))
         break
       except Exception as e:
         print(e)
@@ -571,7 +581,7 @@ def check_visibility(blender_objects, min_pixels_per_object):
   return True
 
 
-def render_shadeless(blender_objects, path='flat.png'):
+def render_shadeless(blender_objects, color_list, path='flat.png'):
   """
   Render a version of the scene with shading disabled and unique materials
   assigned to all objects, and return a set of all colors that should be in the
@@ -600,18 +610,13 @@ def render_shadeless(blender_objects, path='flat.png'):
   utils.set_layer(bpy.data.objects['Ground.003'], 2)
 
   # Add random shadeless materials to all objects
-  object_colors = set()
   old_materials = []
   for i, obj in enumerate(blender_objects):
     old_materials.append(obj.data.materials[0])
     bpy.ops.material.new()
     mat = bpy.data.materials['Material']
     mat.name = 'Material_%d' % i
-    while True:
-      r, g, b = [random.random() for _ in range(3)]
-      if (r, g, b) not in object_colors: break
-    object_colors.add((r, g, b))
-    mat.diffuse_color = [r, g, b]
+    mat.diffuse_color = [*color_list[i]]
     mat.use_shadeless = True
     obj.data.materials[0] = mat
 
