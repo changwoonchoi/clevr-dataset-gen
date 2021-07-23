@@ -6,7 +6,7 @@
 # of patent rights can be found in the PATENTS file in the same directory.
 
 from __future__ import print_function
-from utils import parent_obj_to_camera
+from utils import parent_obj_to_camera, listify_matrix
 import math, sys, random, argparse, json, os, tempfile
 import numpy as np
 from datetime import datetime as dt
@@ -115,6 +115,8 @@ parser.add_argument('--output_scene_dir', default='../output/scenes/',
          "It will be created if it does not exist.")
 parser.add_argument('--output_scene_file', default='../output/CLEVR_scenes.json',
     help="Path to write a single JSON file containing all scene information")
+parser.add_argument('--transform_output_file', default='output/transforms.json',
+    help="path for frame data")
 parser.add_argument('--output_blend_dir', default='output/blendfiles',
     help="The directory where blender scene files will be stored, if the " +
          "user requested that these files be saved using the " +
@@ -174,6 +176,10 @@ def main(args):
   scene_template = os.path.join(args.output_scene_dir, scene_template)
   blend_template = os.path.join(args.output_blend_dir, blend_template)
 
+  out_data = {
+    'camera_angle_x': bpy.data.objects['Camera'].data.angle_x,
+  }
+  out_data['frames'] = []
   if not os.path.isdir(args.output_image_dir):
     os.makedirs(args.output_image_dir)
   if not os.path.isdir(args.output_scene_dir):
@@ -196,6 +202,7 @@ def main(args):
     else:
       num_objects = args.num_objects
     render_scene(args,
+      output_json=out_data,
       num_objects=num_objects,
       output_index=(i + args.start_idx),
       output_split=args.split,
@@ -221,9 +228,12 @@ def main(args):
   }
   with open(args.output_scene_file, 'w') as f:
     json.dump(output, f)
+  with open(args.transform_output_file, 'w') as out_file:
+    json.dump(out_data, out_file, indent=4)
 
 
 def render_scene(args,
+    output_json,
     num_objects=5,
     output_index=0,
     output_split='none',
@@ -231,7 +241,6 @@ def render_scene(args,
     output_scene='render_json',
     output_blendfile=None,
   ):
-
   # Load the main blendfile
   bpy.ops.wm.open_mainfile(filepath=args.base_scene_blendfile)
 
@@ -367,8 +376,14 @@ def render_scene(args,
         if camera.location[2] > 0.1 * r: break
     else:
       b_empty.rotation_euler = np.random.uniform(0, 2*np.pi, size=3)
+    
     while True:
       try:
+        frame_data = {
+          'file_path': scene.render.filepath,
+          'transform_matrix': listify_matrix(camera.matrix_world)
+        }
+        output_json['frames'].append(frame_data)
         bpy.ops.render.render(write_still=True)
         render_shadeless(blender_objects, path=output_image[:-4] + '/mask/{}.png'.format(i))
         break
