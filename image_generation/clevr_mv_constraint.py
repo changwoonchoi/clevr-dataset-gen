@@ -640,7 +640,6 @@ def render_shadeless(blender_objects, color_list, path='flat.png'):
   render_args.filepath = old_filepath
   render_args.engine = old_engine
   render_args.use_antialiasing = old_use_antialiasing
-  return object_colors
 
 
 if __name__ == '__main__':
