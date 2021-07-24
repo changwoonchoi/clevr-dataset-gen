@@ -52,6 +52,8 @@ parser.add_argument('--upper_only', action='store_true')
 parser.add_argument('--rot_with_xyz', action='store_true')
 
 # Input options
+parser.add_argument('--saved_blendfile', default='../train/scene.blend')
+parser.add_argument('--render_from_savedfile', action='store_true')
 parser.add_argument('--base_scene_blendfile', default='data/base_scene_centered.blend',
     help="Base blender file on which all scenes are based; includes " +
           "ground plane, lights, and camera.")
@@ -190,26 +192,25 @@ def main(args):
   # bpy.context.scene.render.film_transparent = True
 
   all_scene_paths = []
-  for i in range(args.num_images):
-    img_path = img_template % (i + args.start_idx)
-    scene_path = scene_template % (i + args.start_idx)
-    all_scene_paths.append(scene_path)
-    blend_path = None
-    if args.save_blendfiles == 1:
-      blend_path = blend_template % (i + args.start_idx)
-    if args.random_num:
-      num_objects = random.randint(args.min_objects, args.max_objects)
-    else:
-      num_objects = args.num_objects
-    render_scene(args,
-      output_json=out_data,
-      num_objects=num_objects,
-      output_index=(i + args.start_idx),
-      output_split=args.split,
-      output_image=img_path,
-      output_scene=scene_path,
-      output_blendfile=blend_path,
-    )
+  img_path = img_template % (args.start_idx)
+  scene_path = scene_template % (args.start_idx)
+  all_scene_paths.append(scene_path)
+  blend_path = None
+  if args.save_blendfiles == 1:
+    blend_path = blend_template % (args.start_idx)
+  if args.random_num:
+    num_objects = random.randint(args.min_objects, args.max_objects)
+  else:
+    num_objects = args.num_objects
+  render_scene(args,
+    output_json=out_data,
+    num_objects=num_objects,
+    output_index=(args.start_idx),
+    output_split=args.split,
+    output_image=img_path,
+    output_scene=scene_path,
+    output_blendfile=blend_path,
+  )
 
   # After rendering all images, combine the JSON files for each scene into a
   # single JSON file.
@@ -391,7 +392,8 @@ def render_scene(args,
       try:
         frame_data = {
           'file_path': scene.render.filepath,
-          'transform_matrix': listify_matrix(camera.matrix_world)
+          'transform_matrix': listify_matrix(camera.matrix_world),
+          'camera_location': [camera.location[0], camera.location[1], camera.location[2]]
         }
         output_json['frames'].append(frame_data)
         bpy.ops.render.render(write_still=True)
