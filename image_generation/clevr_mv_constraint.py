@@ -53,6 +53,7 @@ parser.add_argument('--rot_with_xyz', action='store_true')
 
 # Input options
 parser.add_argument('--saved_blendfile', default='../train/scene.blend')
+parser.add_argument('--saved_instance_label', default='../train/instance_label.txt')
 parser.add_argument('--render_from_savedfile', action='store_true')
 parser.add_argument('--base_scene_blendfile', default='data/base_scene_centered.blend',
     help="Base blender file on which all scenes are based; includes " +
@@ -119,6 +120,8 @@ parser.add_argument('--output_scene_file', default='../output/CLEVR_scenes.json'
     help="Path to write a single JSON file containing all scene information")
 parser.add_argument('--transform_output_file', default='../output/transforms.json',
     help="path for frame data")
+parser.add_argument('--output_instance_label', default='../train/instance_label.txt')
+parser.add_argument('--output_instance_list', default='../train/instance_list.txt')
 parser.add_argument('--output_blend_dir', default='output/blendfiles',
     help="The directory where blender scene files will be stored, if the " +
          "user requested that these files be saved using the " +
@@ -184,10 +187,12 @@ def main(args):
   out_data['frames'] = []
   if not os.path.isdir(args.output_image_dir):
     os.makedirs(args.output_image_dir)
+  """
   if not os.path.isdir(args.output_scene_dir):
     os.makedirs(args.output_scene_dir)
   if args.save_blendfiles == 1 and not os.path.isdir(args.output_blend_dir):
     os.makedirs(args.output_blend_dir)
+  """
   # bpy.context.scene.render.dither_intensity = 0.0 
   # bpy.context.scene.render.film_transparent = True
 
@@ -197,7 +202,7 @@ def main(args):
   all_scene_paths.append(scene_path)
   blend_path = None
   if args.save_blendfiles == 1:
-    blend_path = blend_template % (args.start_idx)
+    blend_path = args.output_blend_dir
   if args.random_num:
     num_objects = random.randint(args.min_objects, args.max_objects)
   else:
@@ -211,7 +216,7 @@ def main(args):
     output_scene=scene_path,
     output_blendfile=blend_path,
   )
-
+  """
   # After rendering all images, combine the JSON files for each scene into a
   # single JSON file.
   all_scenes = []
@@ -229,6 +234,7 @@ def main(args):
   }
   with open(args.output_scene_file, 'w') as f:
     json.dump(output, f)
+  """
   with open(args.transform_output_file, 'w') as out_file:
     json.dump(out_data, out_file, indent=4)
 
@@ -243,10 +249,13 @@ def render_scene(args,
     output_blendfile=None,
   ):
   # Load the main blendfile
-  bpy.ops.wm.open_mainfile(filepath=args.base_scene_blendfile)
-
+  if args.render_from_savedfile:
+    bpy.ops.wm.open_mainfile(filepath=args.saved_blendfile)
+  else:
+    bpy.ops.wm.open_mainfile(filepath=args.base_scene_blendfile)
+    utils.load_materials(args.material_dir)
   # Load materials
-  utils.load_materials(args.material_dir)
+  # utils.load_materials(args.material_dir)
 
   # Set render arguments so we can get pixel coordinates later.
   # We use functionality specific to the CYCLES renderer so BLENDER_RENDER
@@ -323,7 +332,7 @@ def render_scene(args,
   scene_struct['directions']['right'] = tuple(-plane_left)
   scene_struct['directions']['above'] = tuple(plane_up)
   scene_struct['directions']['below'] = tuple(-plane_up)
-
+  """
   # Add random jitter to lamp positions
   if args.key_light_jitter > 0:
     for i in range(3):
@@ -334,19 +343,35 @@ def render_scene(args,
   if args.fill_light_jitter > 0:
     for i in range(3):
       bpy.data.objects['Lamp_Fill'].location[i] += rand(args.fill_light_jitter)
-
+  """
   # Now make some random objects
-  objects, blender_objects = add_random_objects(scene_struct, num_objects, args, camera)
 
+  if args.render_from_savedfile:
+    blender_objects = bpy.data.objects[-args.num_objects:]
+  else:
+    _, blender_objects = add_random_objects(scene_struct, num_objects, args, camera)
   # create random color for instance mask
 
-  mask_colors = set()
-  for i, obj in enumerate(blender_objects):
-    while True:
-      r, g, b = [random.random() for _ in range(3)]
-      if (r, g, b) not in mask_colors: break
-    mask_colors.add((r, g, b))
-  mask_colors = list(mask_colors)
+  if not args.render_from_savedfile:
+    mask_colors = set()
+    for i, obj in enumerate(blender_objects):
+      while True:
+        r, g, b = [random.random() for _ in range(3)]
+        if (r, g, b) not in mask_colors: break
+      mask_colors.add((r, g, b))
+    mask_colors = list(mask_colors)
+    np.savetxt(args.output_instance_label, np.asarray(mask_colors))
+    instance_list = [i.name for i in blender_objects]
+    with open (args.output_instance_list, "w") as f:
+      f.write(str(instance_list))
+  else:
+    with open('../scene_0/train/instance_list.txt', 'r') as f:
+      instance_list = f.read()
+    import ast
+    instance_list = ast.literal_eval(instance_list)
+    mask_colors_shuffled = np.loadtxt(args.saved_instance_label)
+    blender_object_instances = [i.name for i in blender_objects]
+    mask_colors = [mask_colors_shuffled[blender_object_instances.index(instance_list[i])] for i in range(args.num_objects)]
   
   # render individual mask png
   """
@@ -357,15 +382,15 @@ def render_scene(args,
 
   # render whole mask png
   render_shadeless(blender_objects, path=output_image[:-4] + '/mask/all.png')
-  """
   # Render the scene and dump the scene data structure
   scene_struct['objects'] = objects
   scene_struct['relationships'] = compute_all_relationships(scene_struct)
   
+  """
   scene = bpy.context.scene
 
   for i in range(0, args.num_view):
-    scene.render.filepath = output_image[:-4] + '_{}.png'.format(i)
+    scene.render.filepath = args.output_image_dir + 'r_{}.png'.format(i)
     cam_constraint = camera.constraints.new(type="TRACK_TO")
     cam_constraint.track_axis = 'TRACK_NEGATIVE_Z'
     cam_constraint.up_axis = 'UP_Y'
@@ -377,14 +402,12 @@ def render_scene(args,
       rot[0] = np.abs(np.arccos(1 - 2 * rot[0]) - np.pi / 2)
       b_empty.rotation_euler = rot
     elif args.rot_with_xyz:
-      while True:
-        r = math.sqrt(camera.location[0] ** 2 + camera.location[1] ** 2 + camera.location[2] ** 2)
-        theta = np.random.uniform(0, 1) * np.pi / 2
-        phi = np.random.uniform(0, 1) * 2 * np.pi
-        camera.location[0] = r * np.sin(theta) * np.cos(phi)
-        camera.location[1] = r * np.sin(theta) * np.sin(phi)
-        camera.location[2] = r * np.cos(theta)
-        if camera.location[2] > 0.1 * r: break
+      r = math.sqrt(camera.location[0] ** 2 + camera.location[1] ** 2 + camera.location[2] ** 2)
+      theta = np.random.uniform(0, 0.8) * np.pi / 2
+      phi = np.random.uniform(0, 1) * 2 * np.pi
+      camera.location[0] = r * np.sin(theta) * np.cos(phi)
+      camera.location[1] = r * np.sin(theta) * np.sin(phi)
+      camera.location[2] = r * np.cos(theta)
     else:
       b_empty.rotation_euler = np.random.uniform(0, 2*np.pi, size=3)
     
@@ -397,14 +420,14 @@ def render_scene(args,
         }
         output_json['frames'].append(frame_data)
         bpy.ops.render.render(write_still=True)
-        render_shadeless(blender_objects, mask_colors, path=output_image[:-4] + '/mask/{}.png'.format(i))
+        render_shadeless(blender_objects, mask_colors, path=args.output_image_dir + 'mask_r_{}.png'.format(i))
         break
       except Exception as e:
         print(e)
-
+  """
   with open(output_scene, 'w') as f:
     json.dump(scene_struct, f, indent=2)
-
+  """
   if output_blendfile is not None:
     bpy.ops.wm.save_as_mainfile(filepath=output_blendfile)
 
@@ -516,8 +539,7 @@ def add_random_objects(scene_struct, num_objects, args, camera):
     })
 
   # Check that all objects are at least partially visible in the rendered image
-  # import pdb; pdb.set_trace()
-  """
+
   all_visible = check_visibility(blender_objects, args.min_pixels_per_object)
   if not all_visible:
     # If any of the objects are fully occluded then start over; delete all
@@ -526,7 +548,6 @@ def add_random_objects(scene_struct, num_objects, args, camera):
     for obj in blender_objects:
       utils.delete_object(obj)
     return add_random_objects(scene_struct, num_objects, args, camera)
-  """
   return objects, blender_objects
 
 
@@ -568,8 +589,16 @@ def check_visibility(blender_objects, min_pixels_per_object):
 
   Returns True if all objects are visible and False otherwise.
   """
+  cx = bpy.data.objects['Camera'].location[0]
+  cy = bpy.data.objects['Camera'].location[1]
+  cz = bpy.data.objects['Camera'].location[2]
+  r = math.sqrt(cx**2 + cy**2 + cz**2)
+  bpy.data.objects['Camera'].location[0] = 0
+  bpy.data.objects['Camera'].location[1] = 0
+  bpy.data.objects['Camera'].location[2] = r
+
   f, path = tempfile.mkstemp(suffix='.png')
-  object_colors = render_shadeless(blender_objects, path=path)
+  object_colors = render_shadeless_random(blender_objects, path=path)
   img = bpy.data.images.load(path)
   p = list(img.pixels)
   color_count = Counter((p[i], p[i+1], p[i+2], p[i+3])
@@ -619,6 +648,71 @@ def render_shadeless(blender_objects, color_list, path='flat.png'):
     mat = bpy.data.materials['Material']
     mat.name = 'Material_%d' % i
     mat.diffuse_color = [*color_list[i]]
+    mat.use_shadeless = True
+    obj.data.materials[0] = mat
+
+  # Render the scene
+  bpy.ops.render.render(write_still=True)
+
+  # Undo the above; first restore the materials to objects
+  for mat, obj in zip(old_materials, blender_objects):
+    obj.data.materials[0] = mat
+
+  # Move the lights and ground back to layer 0
+  utils.set_layer(bpy.data.objects['Lamp_Key'], 0)
+  utils.set_layer(bpy.data.objects['Lamp_Fill'], 0)
+  utils.set_layer(bpy.data.objects['Lamp_Back'], 0)
+  utils.set_layer(bpy.data.objects['Ground'], 0)
+  utils.set_layer(bpy.data.objects['Ground.001'], 0)
+  utils.set_layer(bpy.data.objects['Ground.002'], 0)
+  utils.set_layer(bpy.data.objects['Ground.003'], 0)
+
+  # Set the render settings back to what they were
+  render_args.filepath = old_filepath
+  render_args.engine = old_engine
+  render_args.use_antialiasing = old_use_antialiasing
+
+def render_shadeless_random(blender_objects, path='flat.png'):
+  """
+  Render a version of the scene with shading disabled and unique materials
+  assigned to all objects, and return a set of all colors that should be in the
+  rendered image. The image itself is written to path. This is used to ensure
+  that all objects will be visible in the final rendered scene.
+  """
+  render_args = bpy.context.scene.render
+
+  # Cache the render args we are about to clobber
+  old_filepath = render_args.filepath
+  old_engine = render_args.engine
+  old_use_antialiasing = render_args.use_antialiasing
+
+  # Override some render settings to have flat shading
+  render_args.filepath = path
+  render_args.engine = 'BLENDER_RENDER'
+  render_args.use_antialiasing = False
+
+  # Move the lights and ground to layer 2 so they don't render
+  utils.set_layer(bpy.data.objects['Lamp_Key'], 2)
+  utils.set_layer(bpy.data.objects['Lamp_Fill'], 2)
+  utils.set_layer(bpy.data.objects['Lamp_Back'], 2)
+  utils.set_layer(bpy.data.objects['Ground'], 2)
+  utils.set_layer(bpy.data.objects['Ground.001'], 2)
+  utils.set_layer(bpy.data.objects['Ground.002'], 2)
+  utils.set_layer(bpy.data.objects['Ground.003'], 2)
+
+  # Add random shadeless materials to all objects
+  object_colors = set()
+  old_materials = []
+  for i, obj in enumerate(blender_objects):
+    old_materials.append(obj.data.materials[0])
+    bpy.ops.material.new()
+    mat = bpy.data.materials['Material']
+    mat.name = 'Material_%d' % i
+    while True:
+      r, g, b = [random.random() for _ in range(3)]
+      if (r, g, b) not in object_colors: break
+    object_colors.add((r, g, b))
+    mat.diffuse_color = [r, g, b]
     mat.use_shadeless = True
     obj.data.materials[0] = mat
 
