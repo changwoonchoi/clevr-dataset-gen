@@ -54,6 +54,7 @@ parser.add_argument('--rot_with_xyz', action='store_true')
 # Input options
 parser.add_argument('--saved_blendfile', default='../train/scene.blend')
 parser.add_argument('--saved_instance_label', default='../train/instance_label.txt')
+parser.add_argument('--saved_instance_list')
 parser.add_argument('--render_from_savedfile', action='store_true')
 parser.add_argument('--base_scene_blendfile', default='data/base_scene_centered.blend',
     help="Base blender file on which all scenes are based; includes " +
@@ -365,7 +366,7 @@ def render_scene(args,
     with open (args.output_instance_list, "w") as f:
       f.write(str(instance_list))
   else:
-    with open('../scene_0/train/instance_list.txt', 'r') as f:
+    with open(args.saved_instance_list, 'r') as f:
       instance_list = f.read()
     import ast
     instance_list = ast.literal_eval(instance_list)
