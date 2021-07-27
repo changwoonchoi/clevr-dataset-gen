@@ -413,6 +413,7 @@ def render_scene(args,
     
     while True:
       try:
+        scene.update()
         frame_data = {
           'file_path': scene.render.filepath,
           'transform_matrix': listify_matrix(camera.matrix_world),
